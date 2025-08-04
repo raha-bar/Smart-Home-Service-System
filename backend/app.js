@@ -1,20 +1,32 @@
 const express = require('express');
 const cors = require('cors');
-const dotenv = require('dotenv');
-const connectDB = require('./config/db');
-dotenv.config();
-connectDB();
+const mongoose = require('mongoose');
+require('dotenv').config();
+
+const userRoutes = require('./routes/userRoutes');
+// In future steps, add these:
+// const serviceRoutes = require('./routes/serviceRoutes');
+// const bookingRoutes = require('./routes/bookingRoutes');
 
 const app = express();
+
 app.use(cors());
 app.use(express.json());
 
-// Example route
-app.get('/', (req, res) => res.send('API Running'));
-
-// TODO: Add your routes here
-const userRoutes = require('./routes/userRoutes');
+// Connect user API routes
 app.use('/api/users', userRoutes);
+// For later steps, uncomment when files exist:
+// app.use('/api/services', serviceRoutes);
+// app.use('/api/bookings', bookingRoutes);
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
+// MongoDB connection
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+}).then(() => {
+  console.log('MongoDB connected');
+}).catch((err) => {
+  console.error('MongoDB connection error:', err);
+});
+
+module.exports = app;
