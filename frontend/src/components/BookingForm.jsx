@@ -22,20 +22,20 @@ export default function BookingForm({ serviceId }) {
   }
 
   return (
-    <form onSubmit={onSubmit} style={{ display: 'grid', gap: 8, maxWidth: 420 }}>
+    <form onSubmit={onSubmit} className="form">
       <label>
         When
-        <input name="scheduledAt" type="datetime-local" required />
+        <input name="scheduledAt" type="datetime-local" className="input" required />
       </label>
       <label>
         Address
-        <input name="address" placeholder="Street, City" required />
+        <input name="address" className="input" placeholder="Street, City" required />
       </label>
       <label>
         Notes
-        <textarea name="notes" placeholder="Optional" />
+        <textarea name="notes" className="textarea" placeholder="Optional" />
       </label>
-      <button disabled={mutation.isPending}>
+      <button className="btn btn-primary" disabled={mutation.isPending}>
         {mutation.isPending ? 'Booking…' : 'Book Service'}
       </button>
     </form>

@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import api from '../lib/api';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext.jsx';
 import { useNavigate } from 'react-router-dom';
 
 export default function Register() {
@@ -26,13 +26,15 @@ export default function Register() {
   }
 
   return (
-    <form onSubmit={onSubmit} style={{ display: 'grid', gap: 8, maxWidth: 360 }}>
-      <h2>Register</h2>
-      <input name="name" placeholder="Name" required />
-      <input name="email" type="email" placeholder="Email" required />
-      <input name="password" type="password" placeholder="Password (min 6)" minLength={6} required />
-      <button disabled={mutation.isPending}>{mutation.isPending ? 'Creating…' : 'Create account'}</button>
-      {mutation.error && <p style={{ color: 'crimson' }}>{mutation.error.message}</p>}
+    <form onSubmit={onSubmit} className="form">
+      <h2>Create account</h2>
+      <label>Name<input name="name" className="input" required /></label>
+      <label>Email<input name="email" type="email" className="input" required /></label>
+      <label>Password<input name="password" type="password" className="input" minLength={6} required /></label>
+      <button className="btn btn-primary" disabled={mutation.isPending}>
+        {mutation.isPending ? 'Creating…' : 'Create account'}
+      </button>
+      {mutation.error && <p className="mono" style={{color:'#ff9b9b'}}>{mutation.error.message}</p>}
     </form>
   );
 }
