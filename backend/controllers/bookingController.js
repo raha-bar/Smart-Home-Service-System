@@ -1,52 +1,19 @@
-const Booking = require('../models/booking');
+import Booking from '../models/booking.js';
 
-// Create booking
-exports.createBooking = async (req, res) => {
-  try {
-    const { userId, serviceId, providerId, scheduledTime, address, notes } = req.body;
-    const booking = new Booking({ userId, serviceId, providerId, scheduledTime, address, notes });
-    await booking.save();
-    res.status(201).json(booking);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-};
+export async function createBooking(req, res) {
+  const { service, scheduledAt, address, notes } = req.body;
+  const booking = await Booking.create({ service, scheduledAt, address, notes, user: req.user._id });
+  res.status(201).json(booking);
+}
 
-// Get bookings by user
-exports.getBookingsByUser = async (req, res) => {
-  try {
-    const bookings = await Booking.find({ userId: req.params.userId })
-      .populate('serviceId')
-      .populate('providerId', 'email');
-    res.json(bookings);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
+export async function myBookings(req, res) {
+  const bookings = await Booking.find({ user: req.user._id }).populate('service');
+  res.json(bookings);
+}
 
-// Get bookings by provider
-exports.getBookingsByProvider = async (req, res) => {
-  try {
-    const bookings = await Booking.find({ providerId: req.params.providerId })
-      .populate('serviceId')
-      .populate('userId', 'email');
-    res.json(bookings);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
-// Update booking status
-exports.updateBookingStatus = async (req, res) => {
-  try {
-    const booking = await Booking.findByIdAndUpdate(
-      req.params.id,
-      { status: req.body.status },
-      { new: true }
-    );
-    if (!booking) return res.status(404).json({ error: 'Booking not found' });
-    res.json(booking);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-};
+export async function updateStatus(req, res) {
+  const { status } = req.body;
+  const booking = await Booking.findByIdAndUpdate(req.params.id, { status }, { new: true });
+  if (!booking) return res.status(404).json({ message: 'Booking not found' });
+  res.json(booking);
+}

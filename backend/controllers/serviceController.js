@@ -1,56 +1,31 @@
-const Service = require('../models/service');
+import Service from '../models/service.js';
 
-// Create a new service
-exports.createService = async (req, res) => {
-  try {
-    const { title, description, category, price, providerId } = req.body;
-    const service = new Service({ title, description, category, price, providerId });
-    await service.save();
-    res.status(201).json(service);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-};
+export async function listServices(_req, res) {
+  const services = await Service.find({ active: true }).sort({ createdAt: -1 });
+  res.json(services);
+}
 
-// Get all services
-exports.getServices = async (req, res) => {
-  try {
-    const services = await Service.find().populate('providerId', 'email role');
-    res.json(services);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
+export async function getService(req, res) {
+  const service = await Service.findById(req.params.id);
+  if (!service) return res.status(404).json({ message: 'Service not found' });
+  res.json(service);
+}
 
-// Get service by ID
-exports.getServiceById = async (req, res) => {
-  try {
-    const service = await Service.findById(req.params.id).populate('providerId', 'email role');
-    if (!service) return res.status(404).json({ error: 'Service not found' });
-    res.json(service);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-};
+export async function createService(req, res) {
+  const { name, description, price, category } = req.body;
+  const service = await Service.create({ name, description, price, category, provider: req.user._id });
+  res.status(201).json(service);
+}
 
-// Update service
-exports.updateService = async (req, res) => {
-  try {
-    const service = await Service.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!service) return res.status(404).json({ error: 'Service not found' });
-    res.json(service);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-};
+export async function updateService(req, res) {
+  const updates = (({ name, description, price, category, active }) => ({ name, description, price, category, active }))(req.body);
+  const service = await Service.findByIdAndUpdate(req.params.id, updates, { new: true });
+  if (!service) return res.status(404).json({ message: 'Service not found' });
+  res.json(service);
+}
 
-// Delete service
-exports.deleteService = async (req, res) => {
-  try {
-    const service = await Service.findByIdAndDelete(req.params.id);
-    if (!service) return res.status(404).json({ error: 'Service not found' });
-    res.json({ message: 'Service deleted' });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-};
+export async function removeService(req, res) {
+  const service = await Service.findByIdAndDelete(req.params.id);
+  if (!service) return res.status(404).json({ message: 'Service not found' });
+  res.json({ ok: true });
+}

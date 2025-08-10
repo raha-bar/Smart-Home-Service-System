@@ -1,12 +1,16 @@
-const express = require('express');
-const router = express.Router();
-const serviceController = require('../controllers/serviceController');
+import { Router } from 'express';
+import { listServices, getService, createService, updateService, removeService } from '../controllers/serviceController.js';
+import { protect } from '../middleware/authMiddleware.js';
+import { requireRole } from '../middleware/roleMiddleware.js';
 
-// Service CRUD
-router.post('/', serviceController.createService);
-router.get('/', serviceController.getServices);
-router.get('/:id', serviceController.getServiceById);
-router.put('/:id', serviceController.updateService);
-router.delete('/:id', serviceController.deleteService);
+const router = Router();
 
-module.exports = router;
+router.get('/', listServices);
+router.get('/:id', getService);
+
+// Admin or provider can manage services
+router.post('/', protect, requireRole('admin', 'provider'), createService);
+router.put('/:id', protect, requireRole('admin', 'provider'), updateService);
+router.delete('/:id', protect, requireRole('admin'), removeService);
+
+export default router;
