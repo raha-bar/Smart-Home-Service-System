@@ -1,32 +1,32 @@
-import { Routes, Route, Link, Navigate } from 'react-router-dom';
-import Services from './pages/Services.jsx';
-import ServiceDetail from './pages/ServiceDetail.jsx';
-import Login from './pages/login.jsx';
-import Register from './pages/Register.jsx';
-import MyBookings from './pages/MyBookings.jsx';
-import ProtectedRoute from './components/ProtectedRoute.jsx';
-import CreateService from './pages/CreateService.jsx';
-import BookService from './pages/booking.jsx';
-import { useAuth } from './context/AuthContext.jsx';
+import { Link, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import Services from './pages/Services.jsx'
+import ServiceDetail from './pages/ServiceDetail.jsx'
+import Book from './pages/booking.jsx'
+import MyBookings from './pages/MyBookings.jsx'
+import Login from './pages/login.jsx'
+import Register from './pages/Register.jsx'
+import CreateService from './pages/CreateService.jsx'
+import Profile from './pages/Profile.jsx'
+import ProtectedRoute from './components/ProtectedRoute.jsx'
+import { useAuth } from './context/AuthContext.jsx'
 
-export default function App() {
+export default function App(){
   const { user, logout } = useAuth();
-  const isManager = user && (user.role === 'admin' || user.role === 'provider');
+  const nav = useNavigate();
+  const doLogout = ()=>{ logout(); nav('/'); };
 
   return (
-    <div className="container">
-      <header className="navbar">
-        <div className="row">
-          <Link to="/">Services</Link>
-          {isManager && <Link to="/services/new" className="btn btn-primary">New Service</Link>}
-        </div>
-        <div className="spacer" />
-        <div className="row">
+    <div>
+      <header className="header">
+        <div className="container row">
+          <Link to="/" className="btn">Services</Link>
+          <div className="spacer" />
           {user ? (
             <>
-              <span className="mono">Hi, {user.name || user.email}</span>
+              <span className="muted">Hi, {user?.name || 'User'}</span>
               <Link to="/my-bookings" className="btn">My Bookings</Link>
-              <button className="btn" onClick={logout}>Logout</button>
+              <Link to="/profile" className="btn">Profile</Link>
+              <button className="btn" onClick={doLogout}>Logout</button>
             </>
           ) : (
             <>
@@ -37,32 +37,21 @@ export default function App() {
         </div>
       </header>
 
-      <main className="content">
+      <main className="container" style={{padding:'20px 0 60px'}}>
         <Routes>
-          <Route path="/" element={<Services />} />
-          <Route path="/services/:id" element={<ServiceDetail />} />
-          <Route path="/book/:id" element={
-            <ProtectedRoute>
-              <BookService />
-            </ProtectedRoute>
-          } />
-          <Route path="/my-bookings" element={
-            <ProtectedRoute>
-              <MyBookings />
-            </ProtectedRoute>
-          } />
-          <Route path="/services/new" element={
-            <ProtectedRoute>
-              <CreateService />
-            </ProtectedRoute>
-          } />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="/" element={<Services/>}/>
+          <Route path="/services/:id" element={<ServiceDetail/>}/>
+          <Route path="/book/:id" element={<ProtectedRoute><Book/></ProtectedRoute>}/>
+          <Route path="/my-bookings" element={<ProtectedRoute><MyBookings/></ProtectedRoute>}/>
+          <Route path="/profile" element={<ProtectedRoute><Profile/></ProtectedRoute>}/>
+          <Route path="/login" element={<Login/>}/>
+          <Route path="/register" element={<Register/>}/>
+          <Route path="/create-service" element={<ProtectedRoute><CreateService/></ProtectedRoute>}/>
+          <Route path="*" element={<Navigate to="/" replace/>}/>
         </Routes>
       </main>
 
-      <footer className="footer mono">© Smart Home Service</footer>
+      <footer className="footer">© Smart Home Service</footer>
     </div>
-  );
+  )
 }
