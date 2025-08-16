@@ -4,8 +4,10 @@ import { useState } from 'react'
 import Modal from '../components/ui/Modal.jsx'
 import Input from '../components/ui/Input'
 import Button from '../components/ui/Button'
+import { useToast } from '../components/ui/Toast.jsx'
 
 export default function MyBookings(){
+  const { push } = useToast() || { push: () => {} }
   const qc = useQueryClient()
   const { data, isLoading, error } = useQuery({
     queryKey:['my-bookings'],
@@ -17,7 +19,8 @@ export default function MyBookings(){
       try { return (await api.patch(`/bookings/${id}`, { status:'cancelled' })).data }
       catch { try { return (await api.post(`/bookings/${id}/cancel`)).data } catch { return (await api.delete(`/bookings/${id}`)).data } }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey:['my-bookings'] })
+    onSuccess: () => { qc.invalidateQueries({ queryKey:['my-bookings'] }); push('Booking cancelled','success') },
+    onError:  () => { push('Failed to cancel booking','error') }
   })
 
   const reschedule = useMutation({
@@ -25,7 +28,8 @@ export default function MyBookings(){
       try { return (await api.patch(`/bookings/${id}`, { scheduledAt })).data }
       catch { return (await api.post(`/bookings/${id}/reschedule`, { scheduledAt })).data }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey:['my-bookings'] })
+    onSuccess: () => { qc.invalidateQueries({ queryKey:['my-bookings'] }); push('Booking rescheduled','success') },
+    onError:  () => { push('Failed to reschedule','error') }
   })
 
   const [open, setOpen] = useState(false)
@@ -56,8 +60,8 @@ export default function MyBookings(){
             </div>
             {b.address && <p className="muted" style={{marginTop:6}}>{b.address}</p>}
             <div style={{display:'flex',gap:8,marginTop:10}}>
-              <Button className="btn-sm" onClick={()=>openReschedule(b)}>Reschedule</Button>
-              <Button className="btn-sm" onClick={()=>cancel.mutate(b._id)}>Cancel</Button>
+              <Button className="btn-sm" onClick={()=>openReschedule(b)} disabled={reschedule.isPending}>Reschedule</Button>
+              <Button className="btn-sm" onClick={()=>cancel.mutate(b._id)} disabled={cancel.isPending}>Cancel</Button>
             </div>
           </div>
         ))}

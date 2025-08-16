@@ -3,9 +3,11 @@ import { useAuth } from '../context/AuthContext.jsx'
 import api from '../lib/api'
 import Input from '../components/ui/Input'
 import Button from '../components/ui/Button'
+import { useToast } from '../components/ui/Toast.jsx'
 
 export default function Profile(){
   const { user, login } = useAuth()
+  const { push } = useToast() || { push: () => {} }
 
   const { data, isLoading, error } = useQuery({
     queryKey:['me'],
@@ -15,13 +17,16 @@ export default function Profile(){
   const save = useMutation({
     mutationFn: (payload) => api.put('/users/me', payload).then(r=>r.data),
     onSuccess: (updated) => {
-      // refresh user in context if API returns user
       if (updated?.user) login({ token: localStorage.getItem('token') || '', user: updated.user })
-    }
+      push('Profile saved','success')
+    },
+    onError: () => push('Failed to save profile','error')
   })
 
   const changePw = useMutation({
-    mutationFn: (payload) => api.put('/users/me/password', payload).then(r=>r.data)
+    mutationFn: (payload) => api.put('/users/me/password', payload).then(r=>r.data),
+    onSuccess: () => push('Password updated','success'),
+    onError: () => push('Failed to update password','error')
   })
 
   function onSave(e){
@@ -55,8 +60,6 @@ export default function Profile(){
           <label>Phone<Input name="phone" defaultValue={me.phone || ''} /></label>
           <label>Address<Input name="address" defaultValue={me.address || ''} /></label>
           <Button variant="primary" disabled={save.isPending}>{save.isPending?'Saving…':'Save changes'}</Button>
-          {save.isError && <p className="mono">{save.error.message}</p>}
-          {save.isSuccess && <p className="mono">Saved.</p>}
         </form>
       </div>
 
@@ -66,8 +69,6 @@ export default function Profile(){
           <label>Current password<Input name="current" type="password" required /></label>
           <label>New password<Input name="next" type="password" required minLength={6} /></label>
           <Button variant="primary" disabled={changePw.isPending}>{changePw.isPending?'Updating…':'Update password'}</Button>
-          {changePw.isError && <p className="mono">{changePw.error.message}</p>}
-          {changePw.isSuccess && <p className="mono">Password updated.</p>}
         </form>
       </div>
     </section>
