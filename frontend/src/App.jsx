@@ -1,3 +1,4 @@
+
 import { Link, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import Services from './pages/Services.jsx'
 import ServiceDetail from './pages/ServiceDetail.jsx'
@@ -8,7 +9,10 @@ import Register from './pages/Register.jsx'
 import CreateService from './pages/CreateService.jsx'
 import Profile from './pages/Profile.jsx'
 import Favorites from './pages/Favorites.jsx'
+import ServicesAdmin from './pages/admin/ServicesAdmin.jsx'
+import ReviewsAdmin from './pages/admin/ReviewsAdmin.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
+import AdminRoute from './components/AdminRoute.jsx'
 import { useAuth } from './context/AuthContext.jsx'
 import { ToastProvider } from './components/ui/Toast.jsx'
 
@@ -24,6 +28,9 @@ export default function App(){
           <div className="container row">
             <Link to="/" className="btn">Services</Link>
             <Link to="/favorites" className="btn">Saved</Link>
+            {user?.role === 'admin' || user?.role === 'manager' ? (
+              <Link to="/admin/services" className="btn">Admin</Link>
+            ) : null}
             <div className="spacer" />
             {user ? (
               <>
@@ -49,6 +56,8 @@ export default function App(){
             <Route path="/my-bookings" element={<ProtectedRoute><MyBookings/></ProtectedRoute>}/>
             <Route path="/profile" element={<ProtectedRoute><Profile/></ProtectedRoute>}/>
             <Route path="/favorites" element={<ProtectedRoute><Favorites/></ProtectedRoute>}/>
+            <Route path="/admin/services" element={<AdminRoute><ServicesAdmin/></AdminRoute>} />
+            <Route path="/admin/reviews" element={<AdminRoute><ReviewsAdmin/></AdminRoute>} />
             <Route path="/login" element={<Login/>}/>
             <Route path="/register" element={<Register/>}/>
             <Route path="/create-service" element={<ProtectedRoute><CreateService/></ProtectedRoute>}/>
