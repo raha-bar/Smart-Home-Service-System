@@ -11,4 +11,13 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// normalize errors
+api.interceptors.response.use(
+  (r) => r,
+  (err) => {
+    const message = err?.response?.data?.message || err.message || 'Request failed';
+    return Promise.reject(new Error(message));
+  }
+);
+
 export default api;

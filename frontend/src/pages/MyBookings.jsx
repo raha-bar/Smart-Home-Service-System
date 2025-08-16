@@ -18,34 +18,33 @@ export default function MyBookings() {
   });
 
   if (isLoading) return <p className="mono">Loading…</p>;
-  if (error) return <p className="mono">Error: {error.message}</p>;
+  if (error) return <p className="error mono">Failed to load: {error.message}</p>;
 
   return (
     <section className="section">
       <h2>My Bookings</h2>
-      {data?.length === 0 && <p className="mono">No bookings yet.</p>}
-      <div className="grid">
+      <div className="stack">
+        {data?.length === 0 && <p className="muted">No bookings yet.</p>}
         {data?.map((b) => (
           <div key={b._id} className="card">
-            <div className="row"><strong>{b.service?.name}</strong></div>
-            <div className="mono">{new Date(b.scheduledAt).toLocaleString()}</div>
-            <div className="mono">{b.address}</div>
-            {b.notes && <div className="mono">Notes: {b.notes}</div>}
-            <div className="row" style={{marginTop:8}}>
-              <span className={`status ${b.status}`}>{b.status}</span>
-              {isManager && (
-                <select
-                  className="select"
-                  defaultValue={b.status}
-                  onChange={(e) => updateStatus.mutate({ id: b._id, status: e.target.value })}
-                >
-                  <option value="pending">pending</option>
-                  <option value="confirmed">confirmed</option>
-                  <option value="completed">completed</option>
-                  <option value="cancelled">cancelled</option>
-                </select>
-              )}
+            <div className="row space-between">
+              <div>
+                <div className="mono">{new Date(b.scheduledAt).toLocaleString()}</div>
+                <div className="muted">{b.address}</div>
+              </div>
+              <div className="chip">{b.status}</div>
             </div>
+            <div className="row space-between">
+              <div className="muted">Service: {b.service?.name || b.serviceName}</div>
+              <div className="price">${Number(b.price || 0).toFixed(2)}</div>
+            </div>
+            {isManager && (
+              <div className="row gap">
+                <button className="btn" onClick={() => updateStatus.mutate({ id: b._id, status: 'confirmed' })}>Confirm</button>
+                <button className="btn" onClick={() => updateStatus.mutate({ id: b._id, status: 'completed' })}>Complete</button>
+                <button className="btn" onClick={() => updateStatus.mutate({ id: b._id, status: 'cancelled' })}>Cancel</button>
+              </div>
+            )}
           </div>
         ))}
       </div>

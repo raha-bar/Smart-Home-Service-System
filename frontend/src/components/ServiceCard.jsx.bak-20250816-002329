@@ -1,0 +1,17 @@
+import { Link } from 'react-router-dom';
+
+export default function ServiceCard({ service }) {
+  return (
+    <div className="card">
+      <h3>{service.name}</h3>
+      <p className="muted">{service.description}</p>
+      <div className="row">
+        <span className="price">${Number(service.price || 0).toFixed(2)}</span>
+        <div className="row gap">
+          <Link to={`/services/${service._id}`} className="btn">View</Link>
+          <Link to={`/book/${service._id}`} className="btn btn-primary">Book</Link>
+        </div>
+      </div>
+    </div>
+  );
+}

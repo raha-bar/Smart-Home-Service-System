@@ -1,0 +1,31 @@
+import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
+import api from '../lib/api';
+import ServiceCard from '../components/ServiceCard';
+import { useAuth } from '../context/AuthContext.jsx';
+
+export default function Services() {
+  const { user } = useAuth();
+  const isManager = user && (user.role === 'admin' || user.role === 'provider');
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['services'],
+    queryFn: () => api.get('/services').then((r) => r.data)
+  });
+
+  if (isLoading) return <p className="mono">Loading services…</p>;
+  if (error) return <p className="mono">Failed to load: {error.message}</p>;
+
+  return (
+    <section className="section">
+      {isManager && (
+        <div className="row">
+          <Link to="/services/new" className="btn btn-primary">+ Create a Service</Link>
+        </div>
+      )}
+      <div className="grid">
+        {data?.map((s) => <ServiceCard key={s._id} service={s} />)}
+      </div>
+    </section>
+  );
+}

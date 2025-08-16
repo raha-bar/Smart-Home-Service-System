@@ -1,7 +1,9 @@
 import { useMutation } from '@tanstack/react-query';
 import api from '../lib/api';
 import { useAuth } from '../context/AuthContext.jsx';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import Input from '../components/ui/Input';
+import Button from '../components/ui/Button';
 
 export default function Register() {
   const { login } = useAuth();
@@ -17,24 +19,32 @@ export default function Register() {
 
   function onSubmit(e) {
     e.preventDefault();
-    const form = new FormData(e.currentTarget);
-    mutation.mutate({
-      name: form.get('name'),
-      email: form.get('email'),
-      password: form.get('password')
-    });
+    const fd = new FormData(e.currentTarget);
+    const name = fd.get('name');
+    const email = fd.get('email');
+    const password = fd.get('password');
+    mutation.mutate({ name, email, password });
   }
 
   return (
-    <form onSubmit={onSubmit} className="form">
-      <h2>Create account</h2>
-      <label>Name<input name="name" className="input" required /></label>
-      <label>Email<input name="email" type="email" className="input" required /></label>
-      <label>Password<input name="password" type="password" className="input" minLength={6} required /></label>
-      <button className="btn btn-primary" disabled={mutation.isPending}>
-        {mutation.isPending ? 'Creating…' : 'Create account'}
-      </button>
-      {mutation.error && <p className="mono" style={{color:'#ff9b9b'}}>{mutation.error.message}</p>}
-    </form>
+    <section className="container" style={{maxWidth:520}}>
+      <form onSubmit={onSubmit} className="form card">
+        <h2>Create account</h2>
+        <label>Name
+          <Input name="name" required placeholder="Your name" />
+        </label>
+        <label>Email
+          <Input name="email" type="email" required placeholder="name@example.com" />
+        </label>
+        <label>Password
+          <Input name="password" type="password" required minLength={6} placeholder="min 6 characters" />
+        </label>
+        <Button variant="primary" type="submit" disabled={mutation.isPending}>
+          {mutation.isPending ? 'Creating…' : 'Create account'}
+        </Button>
+        {mutation.isError && <p className="error mono">{mutation.error.message}</p>}
+        <p className="muted">Already have an account? <Link to="/login">Login</Link></p>
+      </form>
+    </section>
   );
 }

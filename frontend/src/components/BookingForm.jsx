@@ -1,5 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
+import Input from './ui/Input';
+import Button from './ui/Button';
 
 export default function BookingForm({ serviceId }) {
   const qc = useQueryClient();
@@ -23,21 +25,19 @@ export default function BookingForm({ serviceId }) {
 
   return (
     <form onSubmit={onSubmit} className="form">
-      <label>
-        When
-        <input name="scheduledAt" type="datetime-local" className="input" required />
+      <label>Date & Time
+        <Input type="datetime-local" name="scheduledAt" required />
       </label>
-      <label>
-        Address
-        <input name="address" className="input" placeholder="Street, City" required />
+      <label>Address
+        <Input name="address" placeholder="House, Street, City" required />
       </label>
-      <label>
-        Notes
-        <textarea name="notes" className="textarea" placeholder="Optional" />
+      <label>Notes (optional)
+        <textarea name="notes" className="input" rows="3" placeholder="Any special instructions?" />
       </label>
-      <button className="btn btn-primary" disabled={mutation.isPending}>
-        {mutation.isPending ? 'Booking…' : 'Book Service'}
-      </button>
+      <Button variant="primary" type="submit" disabled={mutation.isPending}>
+        {mutation.isPending ? 'Booking…' : 'Confirm Booking'}
+      </Button>
+      {mutation.isError && <p className="error mono">{mutation.error.message}</p>}
     </form>
   );
 }

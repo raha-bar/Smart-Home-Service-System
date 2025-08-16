@@ -14,8 +14,8 @@ export function AuthProvider({ children }) {
     () => ({
       user,
       login: ({ token, user }) => {
-        localStorage.setItem('token', token);
-        localStorage.setItem('user', JSON.stringify(user));
+        if (token) localStorage.setItem('token', token);
+        if (user)  localStorage.setItem('user', JSON.stringify(user));
         setUser(user);
       },
       logout: () => {

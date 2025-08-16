@@ -1,0 +1,27 @@
+.container { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+.navbar { display: flex; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 10;}
+.row { display: flex; align-items: center; gap: 12px; }
+.spacer { flex: 1; }
+.content { padding: 24px 0 64px; }
+.footer { border-top: 1px solid var(--border); padding: 16px; text-align: center; }
+.section { display: grid; gap: 16px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.stack { display: grid; gap: 12px; }
+.card { background: var(--card); padding: 16px; border: 1px solid var(--border); border-radius: 12px; }
+.btn { border: 1px solid var(--border); background: #1a1d25; padding: 8px 12px; border-radius: 10px; cursor: pointer; color: var(--text); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.btn:hover { background: #212633; }
+.btn-primary { background: var(--primary); border-color: var(--primary); color: white; }
+.btn-primary:hover { background: var(--primary-600); }
+.input { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: #0e1117; color: var(--text); }
+.form { display: grid; gap: 12px; }
+label { display: grid; gap: 6px; font-size: 14px; }
+h1, h2, h3 { margin: 0 0 8px; }
+p { margin: 6px 0; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; color: var(--muted); }
+.muted { color: var(--muted); }
+.price { font-weight: 700; }
+.chip { border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px; font-size: 12px; color: var(--muted); }
+.row.space-between { justify-content: space-between; }
+.row.gap { gap: 8px; }
+.error { color: var(--red); }
+.success { color: var(--green); }

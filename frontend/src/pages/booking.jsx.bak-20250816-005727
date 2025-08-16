@@ -1,0 +1,42 @@
+import { useParams, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import api from "../lib/api";
+
+export default function BookService() {
+  const { id } = useParams();
+  const nav = useNavigate();
+  const [date, setDate] = useState("");
+  const [timeSlot, setTimeSlot] = useState("");
+  const [address, setAddress] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+  const [ok, setOk] = useState("");
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setLoading(true); setErr(""); setOk("");
+    try {
+      const { data } = await api.post("/bookings", {
+        serviceID: id, date, timeSlot, address
+      });
+      setOk("Booking created!");
+      setTimeout(()=> nav("/my-bookings"), 600);
+    } catch (e) {
+      setErr(e.message || "Failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="form card">
+      <h2>Book Service</h2>
+      <label>Date<input type="date" value={date} onChange={e=>setDate(e.target.value)} className="input" required/></label>
+      <label>Time slot<input value={timeSlot} onChange={e=>setTimeSlot(e.target.value)} className="input" placeholder="e.g., 10:00-11:00" required/></label>
+      <label>Address<input value={address} onChange={e=>setAddress(e.target.value)} className="input" required/></label>
+      <button className="btn btn-primary" disabled={loading}>{loading ? "Creating…" : "Create booking"}</button>
+      {err && <p className="error mono">{err}</p>}
+      {ok && <p className="success mono">{ok}</p>}
+    </form>
+  );
+}

@@ -1,0 +1,41 @@
+import { useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import api from '../lib/api';
+import BookingForm from '../components/BookingForm.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
+
+export default function ServiceDetail() {
+  const { id } = useParams();
+  const { user } = useAuth();
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['service', id],
+    queryFn: () => api.get(`/services/${id}`).then((r) => r.data)
+  });
+
+  if (isLoading) return <p className="mono">Loading…</p>;
+  if (error) return <p className="error mono">Error: {error.message}</p>;
+  if (!data) return <p className="mono">Service not found</p>;
+
+  return (
+    <section className="section">
+      <div className="card">
+        <h2>{data.name}</h2>
+        <p className="muted">{data.description}</p>
+        <div className="row">
+          <span className="price">${Number(data.price || 0).toFixed(2)}</span>
+          <span className="chip">{data.category}</span>
+        </div>
+      </div>
+
+      {user ? (
+        <div className="card">
+          <h3>Book this service</h3>
+          <BookingForm serviceId={id} />
+        </div>
+      ) : (
+        <p className="mono">Please login to book.</p>
+      )}
+    </section>
+  );
+}
