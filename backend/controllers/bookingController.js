@@ -87,7 +87,7 @@ export const myBookings = async (req, res) => {
 
 /**
  * PATCH /api/bookings/:id
- * Users: cancel their booking OR reschedule (guards enforced here).
+ * Users: reschedule OR (legacy) cancel — but cancel should use POST /:id/cancel
  * Body: { status?='cancelled', scheduledAt? }
  */
 export const updateBooking = async (req, res) => {
@@ -106,7 +106,7 @@ export const updateBooking = async (req, res) => {
       if (status !== 'cancelled') {
         return res
           .status(400)
-          .json({ message: 'Users can only cancel via this endpoint' });
+          .json({ message: 'Users can only cancel; use /bookings/:id/cancel' });
       }
       booking.status = 'cancelled';
     }
@@ -131,10 +131,36 @@ export const updateBooking = async (req, res) => {
   }
 };
 
+/**
+ * POST /api/bookings/:id/cancel  (user)
+ */
+export const cancelBooking = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const booking = await Booking.findById(id);
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+    if (!ensureOwner(req.user._id, booking.user)) {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+    if (['completed', 'cancelled'].includes(booking.status)) {
+      return res.status(400).json({ message: 'Cannot cancel this booking' });
+    }
+
+    booking.status = 'cancelled';
+    await booking.save();
+
+    emitBookingEvent('cancelled', booking);
+    res.json(booking);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
 /* ----------------------- Admin/Provider status updates -------------------- */
 
 /**
- * PUT /api/bookings/:id/status  (admin or provider)
+ * PUT /api/bookings/:id/status  (admin or assigned provider)
  * Body: { status } where status ∈ ['pending','confirmed','on_the_way','completed','cancelled']
  */
 export const updateStatus = async (req, res) => {
@@ -145,13 +171,17 @@ export const updateStatus = async (req, res) => {
       return res.status(400).json({ message: 'Invalid status' });
     }
 
-    const booking = await Booking.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true }
-    );
-
+    const booking = await Booking.findById(req.params.id);
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+    const isAdmin = req.user?.role === 'admin';
+    const isProvider = booking.provider && ensureOwner(req.user._id, booking.provider);
+    if (!isAdmin && !isProvider) {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    booking.status = status;
+    await booking.save();
 
     emitBookingEvent('status', booking);
     res.json(booking);
@@ -169,24 +199,24 @@ export const assignProvider = async (req, res) => {
     const { id } = req.params;
     const { provider } = req.body || {};
     if (!provider || !isObjectId(provider)) {
-      return res.status(400).json({ message: 'provider is required' });
+      return res.status(400).json({ message: 'Valid provider is required' });
     }
 
-    const booking = await Booking.findByIdAndUpdate(
-      id,
-      { provider },
-      { new: true }
-    )
-      .populate('service', 'name')
-      .populate('provider', 'name role');
+    // validate provider exists & is a provider
+    const User = mongoose.model('User');
+    const prov = await User.findById(provider);
+    if (!prov || prov.role !== 'provider') {
+      return res.status(400).json({ message: 'Provider not found or invalid role' });
+    }
 
+    const booking = await Booking.findById(id);
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
 
-    // Move to confirmed if still pending
-    if (booking.status === 'pending') {
-      booking.status = 'confirmed';
-      await booking.save();
-    }
+    booking.provider = provider;
+    if (booking.status === 'pending') booking.status = 'confirmed';
+    await booking.save();
+
+    await booking.populate('service', 'name').populate('provider', 'name role');
 
     emitBookingEvent('assigned', booking);
     res.json(booking);

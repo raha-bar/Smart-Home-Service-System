@@ -1,0 +1,84 @@
+/* ---------- Global polish layer (keeps your dark theme tokens) ---------- */
+
+/* Header */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  backdrop-filter: saturate(140%) blur(6px);
+  background: linear-gradient(180deg, rgba(16,19,26,.82), rgba(16,19,26,.66));
+  border-bottom: 1px solid var(--border, #1f2430);
+}
+.header .container.row { padding: 10px 0; }
+.header .btn { border-radius: 12px; }
+
+/* Page titles */
+.container h2 { font-size: 22px; letter-spacing: .2px; margin: 6px 0 16px; }
+
+/* Cards */
+.card {
+  background: var(--surface, #10131a);
+  border: 1px solid var(--card-border, #21283a);
+  border-radius: 14px;
+  box-shadow: var(--shadow, 0 10px 30px rgba(0,0,0,.25));
+  padding: 14px;
+}
+
+/* Buttons */
+.btn { transition: background .15s ease, border-color .15s ease, transform .02s ease; }
+.btn:active { transform: translateY(1px); }
+.btn[disabled] { opacity: .65; cursor: not-allowed; }
+
+/* Inputs */
+.input {
+  background: #0e121a;
+  border: 1px solid var(--card-border, #21283a);
+  color: var(--text, #e6e8ee);
+  border-radius: 12px;
+}
+
+/* --------- Table system used by Admin/Provider lists (.table/.thead/.tr) --------- */
+.table {
+  width: 100%;
+  display: grid;
+  gap: 10px;
+}
+.table .thead {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0,1fr));
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted, #9aa4b2);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border, #1f2430);
+}
+.table .tr {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0,1fr));
+  gap: 8px;
+  padding: 12px 10px;
+  background: var(--surface-2, #0f1220);
+  border: 1px solid var(--card-border, #21283a);
+  border-radius: 12px;
+  align-items: center;
+}
+.table .tr > div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Variant for 4 columns (e.g. MyBookings) */
+.table.cols-4 .thead,
+.table.cols-4 .tr { grid-template-columns: 2fr 2fr 1.2fr 1.5fr; }
+
+/* Pager */
+.pager button {
+  border: 1px solid var(--card-border, #21283a);
+  background: #121629;
+  color: var(--text, #e6e8ee);
+  padding: 8px 12px;
+  border-radius: 10px;
+}
+.pager span { color: var(--muted, #9aa4b2); }
+
+/* Utilities */
+.flex { display: flex; align-items: center; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.muted { color: var(--muted, #9aa4b2); }
