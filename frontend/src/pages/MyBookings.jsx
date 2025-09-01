@@ -41,12 +41,12 @@ export default function MyBookings() {
     }
   });
 
-  // --- Cancel flow with confirmation
+  // --- Cancel flow with confirmation (USER route)
   const [cancelId, setCancelId] = useState(null);
   const cancel = useMutation({
-    // FIX: use PUT /bookings/:id/status instead of POST /cancel
+    // IMPORTANT: user-facing cancel endpoint
     mutationFn: async (id) =>
-      (await api.put(`/bookings/${id}/status`, { status: "cancelled" })).data,
+      (await api.post(`/bookings/${id}/cancel`)).data,
     onSuccess: () => {
       toast('Booking cancelled', 'success');
       qc.invalidateQueries({ queryKey: ['my-bookings'] });
@@ -58,11 +58,10 @@ export default function MyBookings() {
   // --- Reschedule modal
   const [open, setOpen] = useState(false);
   const [target, setTarget] = useState(null);
-  function openReschedule(b) { setTarget(b); setOpen(true); }
 
   const reschedule = useMutation({
     mutationFn: async ({ id, scheduledAt }) =>
-      (await api.patch(`/bookings/${id}`, { scheduledAt })).data,
+      (await api.put(`/bookings/${id}/reschedule`, { scheduledAt })).data,
     onSuccess: () => {
       toast('Booking rescheduled', 'success');
       qc.invalidateQueries({ queryKey: ['my-bookings'] });
@@ -71,10 +70,15 @@ export default function MyBookings() {
       toast(e?.response?.data?.message || e.message || 'Failed to reschedule', 'error'),
   });
 
+  function openReschedule(b) {
+    setTarget(b);
+    setOpen(true);
+  }
+
   function doReschedule(e) {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const raw = fd.get('when'); // "YYYY-MM-DDTHH:mm"
+    const form = new FormData(e.currentTarget);
+    const raw = form.get('when');
     if (!raw) return;
 
     const iso = new Date(raw).toISOString();
@@ -96,6 +100,7 @@ export default function MyBookings() {
           const whenText = when ? new Date(when).toLocaleString() : '—';
           const canPay = b.paymentStatus !== 'paid';
           const canInvoice = b.paymentStatus === 'paid' || b.status === 'completed';
+          const status = (b.status || '').toLowerCase();
 
           return (
             <div key={b._id} className="card">
@@ -106,39 +111,77 @@ export default function MyBookings() {
 
               {b.address && <p className="muted" style={{ marginTop: 6 }}>{b.address}</p>}
 
-              <div className="flex" style={{ gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                <Button
-                  onClick={() => openReschedule(b)}
-                  variant="secondary"
-                  disabled={reschedule.isPending}
-                >
-                  Reschedule
-                </Button>
+              {/* Button visibility rules:
+                  - cancelled  -> show nothing
+                  - pending    -> only Reschedule & Cancel
+                  - completed  -> only Invoice
+                  - others     -> full original set
+               */}
+              {status !== 'cancelled' && (
+                <div className="flex" style={{ gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                  {status === 'pending' && (
+                    <>
+                      <Button
+                        onClick={() => openReschedule(b)}
+                        variant="secondary"
+                        disabled={reschedule.isPending}
+                      >
+                        Reschedule
+                      </Button>
 
-                <Button
-                  onClick={() => setCancelId(b._id)}
-                  variant="ghost"
-                  disabled={cancel.isPending || b.status === 'cancelled'}
-                >
-                  Cancel
-                </Button>
+                      <Button
+                        onClick={() => setCancelId(b._id)}
+                        variant="ghost"
+                        disabled={cancel.isPending}
+                      >
+                        Cancel
+                      </Button>
+                    </>
+                  )}
 
-                {canPay && (
-                  <Link to={`/checkout/${b._id}`} className="btn btn-primary">
-                    Pay
-                  </Link>
-                )}
+                  {status === 'completed' && canInvoice && (
+                    <Link to={`/invoice/${b._id}`} className="btn">
+                      Invoice
+                    </Link>
+                  )}
 
-                {canInvoice && (
-                  <Link to={`/invoice/${b._id}`} className="btn">
-                    Invoice
-                  </Link>
-                )}
+                  {status !== 'pending' && status !== 'completed' && (
+                    <>
+                      <Button
+                        onClick={() => openReschedule(b)}
+                        variant="secondary"
+                        disabled={reschedule.isPending}
+                      >
+                        Reschedule
+                      </Button>
 
-                <Link to={`/messages?bookingId=${b._id}`} className="btn">
-                  Chat
-                </Link>
-              </div>
+                      <Button
+                        onClick={() => setCancelId(b._id)}
+                        variant="ghost"
+                        disabled={cancel.isPending}
+                      >
+                        Cancel
+                      </Button>
+
+                      {canPay && (
+                        <Link to={`/checkout/${b._id}`} className="btn btn-primary">
+                          Pay
+                        </Link>
+                      )}
+
+                      {canInvoice && (
+                        <Link to={`/invoice/${b._id}`} className="btn">
+                          Invoice
+                        </Link>
+                      )}
+
+                      <Link to={`/messages?bookingId=${b._id}`} className="btn">
+                        Chat
+                      </Link>
+                    </>
+                  )}
+                </div>
+              )}
 
               <div className="muted" style={{ marginTop: 8 }}>
                 Status: <StatusBadge status={b.status} />
@@ -150,7 +193,7 @@ export default function MyBookings() {
         })}
       </div>
 
-      {/* Reschedule */}
+      {/* Reschedule modal */}
       <Modal
         open={open}
         onClose={() => setOpen(false)}
@@ -167,7 +210,7 @@ export default function MyBookings() {
               type="submit"
               disabled={reschedule.isPending}
             >
-              Save
+              Confirm
             </Button>
             <Button onClick={() => setOpen(false)} type="button">
               Cancel
@@ -188,6 +231,7 @@ export default function MyBookings() {
         onConfirm={({ reason }) => {
           const id = cancelId;
           setCancelId(null);
+          // reason is optional for the backend; we ignore it here
           cancel.mutate(id);
         }}
       />

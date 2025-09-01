@@ -1,21 +1,25 @@
+// frontend/src/lib/ws.js
+import { io } from "socket.io-client";
+
 let socket;
 
 /**
- * Returns a singleton WebSocket connected to your server.
- * Uses VITE_WS_URL (e.g., ws://localhost:5000) and appends /ws?token=...
+ * Returns a singleton Socket.IO client connected to your server.
+ * Accepts either VITE_WS_URL or VITE_SOCKET_URL (fallback) and connects with auth.
  */
 export function getSocket(token) {
-  const base = (import.meta.env.VITE_WS_URL || 'ws://localhost:5000').replace(/\/+$/, '');
-  const url = `${base}/ws?token=${encodeURIComponent(token || '')}`;
+  const base = (import.meta.env.VITE_WS_URL || import.meta.env.VITE_SOCKET_URL || "http://localhost:5000").replace(/\/+$/, "");
 
-  // Reuse if already open to the same URL
-  if (socket && socket.readyState === WebSocket.OPEN && socket.url === url) return socket;
-
-  // If a different URL or closed socket, create a new one
-  if (socket && socket.readyState !== WebSocket.CLOSED) {
-    try { socket.close(); } catch {}
+  if (!socket) {
+    socket = io(base, {
+      transports: ["websocket"],
+      withCredentials: true,
+      auth: token ? { token } : {}
+    });
+  } else if (token) {
+    // refresh auth on reconnects
+    socket.auth = { token };
+    if (!socket.connected) socket.connect();
   }
-
-  socket = new WebSocket(url);
   return socket;
 }

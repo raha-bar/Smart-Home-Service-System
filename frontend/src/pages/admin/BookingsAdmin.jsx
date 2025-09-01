@@ -34,6 +34,8 @@ export default function BookingsAdmin() {
   const [providerId, setProviderId] = useState("");
   const [assignOpen, setAssignOpen] = useState(false);
   const [targetBooking, setTargetBooking] = useState(null);
+  const [providers, setProviders] = useState([]);
+  const [providersLoading, setProvidersLoading] = useState(false);
 
   const paramsQS = useMemo(() => {
     const p = new URLSearchParams({ page: String(page), limit: String(limit) });
@@ -83,20 +85,36 @@ export default function BookingsAdmin() {
             : r
         )
       );
-      try {
-        push({ title: `Booking ${bookingId} → ${newStatus || booking?.status || "updated"}` });
-      } catch {
-        try {
-          push(`Booking ${bookingId} → ${newStatus || "updated"}`, "success");
-        } catch {}
-      }
     },
   });
 
-  async function assignProvider(id, provider) {
-    setAssigningId(id);
+  // open assign modal + fetch verified providers list (helper)
+  async function openAssign(booking) {
+    setAssignOpen(true);
+    setTargetBooking(booking);
+    setProviderId("");
     try {
-      await api.put(`/bookings/${id}/assign-provider`, { provider });
+      setProvidersLoading(true);
+      const res = await api.get(`/providers?verified=1`);
+      const list = Array.isArray(res.data?.items)
+        ? res.data.items
+        : Array.isArray(res.data)
+        ? res.data
+        : [];
+      setProviders(list);
+    } catch {
+      // ignore; manual entry still works
+    } finally {
+      setProvidersLoading(false);
+    }
+  }
+
+  async function assignProvider(id, provider) {
+    if (!id || !provider) return;
+    try {
+      setAssigningId(id);
+      await api.post(`/bookings/${id}/assign`, { providerId: provider });
+      // Optimistic UI
       setRows((prev) =>
         prev.map((r) =>
           r._id === id ? { ...r, provider: { ...(r.provider || {}), _id: provider } } : r
@@ -109,7 +127,20 @@ export default function BookingsAdmin() {
       alert(e?.response?.data?.message || e.message || "Assign failed");
     } finally {
       setAssigningId(null);
-      load(page);
+      load(page); // ensure list refresh after action
+    }
+  }
+
+  async function updateStatus(bookingId) {
+    const next = prompt("Enter status (pending|confirmed|on_the_way|completed|cancelled):");
+    if (!next) return;
+    try {
+      await api.patch(`/bookings/${bookingId}/status`, { status: next });
+      push({ title: "Status updated" });
+    } catch (e) {
+      alert(e?.response?.data?.message || e.message || "Update failed");
+    } finally {
+      load(page); // ensure list refresh after action
     }
   }
 
@@ -140,46 +171,48 @@ export default function BookingsAdmin() {
     );
   }
 
-  const totalPages = Math.max(1, Math.ceil(total / limit));
-
   return (
     <section className="container" style={{ maxWidth: 1100 }}>
-      <h2>Admin — Bookings</h2>
-      {err && <p className="error mono">{err}</p>}
-
-      {/* Filters */}
-      <div className="card" style={{ padding: 12, marginBottom: 12 }}>
-        <div className="flex" style={{ gap: 8, flexWrap: "wrap", alignItems: "end" }}>
-          <label>
-            Status<br />
-            <select value={status} onChange={(e) => setStatus(e.target.value)}>
-              <option value="">(any)</option>
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            From<br />
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-          </label>
-          <label>
-            To<br />
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-          </label>
-          <label>
-            Address contains<br />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="search..." />
-          </label>
-          <Button onClick={() => load(1)} disabled={loading}>
-            Apply
+      <header className="flex between">
+        <h2>Admin — Bookings</h2>
+        <div className="flex gap">
+          <Button onClick={() => load(page)} disabled={loading}>
+            Refresh
           </Button>
           <Button onClick={exportCsv} disabled={loading}>
             Export CSV
           </Button>
         </div>
+      </header>
+
+      {/* Filters */}
+      <div className="filters form" style={{ marginTop: 12 }}>
+        <label>
+          <div className="label">Status</div>
+          <select value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">(any)</option>
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <div className="label">From</div>
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+        </label>
+        <label>
+          <div className="label">To</div>
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+        </label>
+        <label className="grow">
+          <div className="label">Search</div>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="name/email…" />
+        </label>
+        <Button variant="secondary" onClick={() => load(1)}>
+          Apply
+        </Button>
       </div>
 
       {loading && <p>Loading…</p>}
@@ -207,16 +240,12 @@ export default function BookingsAdmin() {
               <div>
                 <StatusBadge status={b.status} />
               </div>
-              <div>
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setTargetBooking(b);
-                    setAssignOpen(true);
-                  }}
-                  disabled={assigningId === b._id}
-                >
-                  Assign Provider
+              <div className="flex gap">
+                <Button variant="secondary" onClick={() => openAssign(b)}>
+                  Assign
+                </Button>
+                <Button variant="ghost" onClick={() => updateStatus(b._id)}>
+                  Update Status
                 </Button>
               </div>
             </div>
@@ -225,18 +254,16 @@ export default function BookingsAdmin() {
       )}
 
       {/* Pagination */}
-      <div
-        className="pager"
-        style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "center" }}
-      >
+      <div className="pager" style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "center" }}>
         <button disabled={page <= 1 || loading} onClick={() => load(page - 1)}>
           Prev
         </button>
-        <span>
-          Page {page} / {totalPages}
-        </span>
+        <span>Page {page}</span>
         <button disabled={rows.length < limit || loading} onClick={() => load(page + 1)}>
           Next
+        </button>
+        <button className="ml-auto" disabled={loading} onClick={() => load(page)}>
+          Refresh
         </button>
       </div>
 
@@ -248,6 +275,33 @@ export default function BookingsAdmin() {
             value={providerId}
             onChange={(e) => setProviderId(e.target.value)}
           />
+
+          {/* Verified providers helper (recommended) */}
+          {providersLoading ? (
+            <div>Loading verified providers…</div>
+          ) : providers && providers.length > 0 ? (
+            <select
+              value={providerId}
+              onChange={(e) => setProviderId(e.target.value)}
+              className="w-full rounded-md border border-gray-700 bg-transparent p-2"
+            >
+              <option value="">Select verified provider</option>
+              {providers.map((p) => {
+                const val = p.user?._id || p.user || p._id;
+                const label = p.displayName || p.user?.name || p.userName || val;
+                const email = p.user?.email ? ` (${p.user.email})` : "";
+                return (
+                  <option key={val} value={val}>
+                    {label}
+                    {email}
+                  </option>
+                );
+              })}
+            </select>
+          ) : (
+            <div className="text-xs muted">No verified providers found.</div>
+          )}
+
           <div className="flex gap-2 justify-end">
             <Button variant="secondary" onClick={() => setAssignOpen(false)}>
               Cancel

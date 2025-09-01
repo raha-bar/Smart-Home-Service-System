@@ -5,52 +5,48 @@ import jwt from 'jsonwebtoken';
 let io = null;
 
 export function initSocket(server) {
+  const ORIGIN = process.env.CLIENT_URL || process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+
   io = new Server(server, {
-    cors: { origin: process.env.CLIENT_URL || '*', credentials: true }
+    cors: { origin: ORIGIN, credentials: true }
   });
 
   io.on('connection', (socket) => {
-    // client should send { token } once connected
-    socket.on('auth', ({ token } = {}) => {
-      try {
-        if (!token) throw new Error('Missing token');
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        socket.data.user = { id: decoded.id, role: decoded.role };
-        socket.join(`user:${decoded.id}`);
-        if (decoded.role === 'provider') socket.join(`provider:${decoded.id}`);
-        socket.emit('auth:ok', { userId: decoded.id, role: decoded.role });
-      } catch (e) {
-        socket.emit('auth:error', { message: e.message || 'Invalid token' });
+    // Read token from Socket.IO auth payload
+    let userId = null;
+    try {
+      const token = socket.handshake?.auth?.token;
+      if (token) {
+        const payload = jwt.verify(token, process.env.JWT_SECRET || 'devsecret123');
+        userId = String(payload.id || payload._id || payload.userId || '');
       }
+    } catch (_) {
+      // invalid token → continue as guest
+    }
+
+    if (userId) {
+      socket.join(`user:${userId}`);
+    }
+
+    socket.on('join:booking', (bookingId) => {
+      if (bookingId) socket.join(`booking:${String(bookingId)}`);
     });
 
-    // optional: subscribe to a specific booking room
-    socket.on('booking:subscribe', (bookingId) => {
-      if (!bookingId) return;
-      socket.join(`booking:${bookingId}`);
+    socket.on('join:provider', (providerId) => {
+      if (providerId) socket.join(`provider:${String(providerId)}`);
     });
-
-    socket.on('disconnect', () => {});
   });
 
   return io;
 }
 
-function safeIO() {
-  if (!io) return null;
+function _io() {
+  if (!io) throw new Error('Socket.io not initialized');
   return io;
 }
 
-/**
- * Emit booking update events to relevant rooms:
- * - booking:<id>
- * - user:<customerId>
- * - provider:<providerId> (if present)
- * Also a broadcast to namespace 'bookings' (all listeners).
- */
-export function emitBookingEvent(type, booking) {
-  const _io = safeIO();
-  if (!_io || !booking) return;
+export function emitBookingEvent(booking, type = 'updated') {
+  if (!io || !booking) return;
 
   const payload = {
     type,
@@ -62,8 +58,8 @@ export function emitBookingEvent(type, booking) {
     updatedAt: booking.updatedAt,
   };
 
-  _io.emit('bookings:event', payload); // global (optional)
-  _io.to(`booking:${payload.bookingId}`).emit('booking:event', payload);
-  if (payload.user) _io.to(`user:${payload.user}`).emit('booking:event', payload);
-  if (payload.provider) _io.to(`provider:${payload.provider}`).emit('booking:event', payload);
+  _io().emit('bookings:event', payload); // global stream
+  _io().to(`booking:${payload.bookingId}`).emit('booking:event', payload);
+  if (payload.user) _io().to(`user:${payload.user}`).emit('booking:event', payload);
+  if (payload.provider) _io().to(`provider:${payload.provider}`).emit('booking:event', payload);
 }
