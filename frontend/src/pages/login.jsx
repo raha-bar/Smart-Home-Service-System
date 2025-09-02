@@ -1,46 +1,97 @@
+import { useState } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import api from '../lib/api';
+import { useToast } from '../components/ui/Toast.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import { useLocation, useNavigate, Link } from 'react-router-dom';
-import Input from '../components/ui/Input';
-import Button from '../components/ui/Button';
 
 export default function Login() {
-  const { login } = useAuth();
-  const nav = useNavigate();
-  const loc = useLocation();
-  const from = loc.state?.from?.pathname || '/';
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const { push } = useToast() || { push: () => {} };
+  const { loginWith } = useAuth() || {};
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  const mutation = useMutation({
-    mutationFn: (payload) => api.post('/auth/login', payload).then((r) => r.data),
+  const login = useMutation({
+    mutationFn: async ({ email, password }) => {
+      const res = await api.post('/auth/login', { email, password });
+      return res.data;
+    },
     onSuccess: (data) => {
-      login(data);
-      nav(from, { replace: true });
+      const token = data?.token || data?.accessToken || data?.jwt || data?.access_token || null;
+      const user  = data?.user || data?.profile || data?.data?.user || null;
+
+      // Persist via context and set axios Authorization header
+      loginWith?.({ token, user });
+
+      try { push({ title: 'Welcome back!', variant: 'success' }); } catch {}
+
+      // Always send users to Home after login
+      const target = '/Home';
+
+      try { navigate(target, { replace: true }); }
+      catch { window.location.replace(target); }
+    },
+    onError: (e) => {
+      const msg = e?.message || e?.response?.data?.message || 'Login failed';
+      try { push({ title: msg, variant: 'error' }); } catch {}
     }
   });
 
-  function onSubmit(e) {
+  const onSubmit = (e) => {
     e.preventDefault();
-    const form = new FormData(e.currentTarget);
-    mutation.mutate({ email: form.get('email'), password: form.get('password') });
-  }
+    if (!email || !password) return;
+    login.mutate({ email, password });
+  };
 
   return (
-    <section className="container" style={{maxWidth:520}}>
-      <form onSubmit={onSubmit} className="form card">
-        <h2>Login</h2>
-        <label>Email
-          <Input name="email" type="email" required placeholder="name@example.com" />
-        </label>
-        <label>Password
-          <Input name="password" type="password" required placeholder="••••••••" />
-        </label>
-        <Button variant="primary" type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? 'Logging in…' : 'Login'}
-        </Button>
-        {mutation.isError && <p className="error mono">{mutation.error.message}</p>}
-        <p className="muted">No account? <Link to="/register">Create one</Link></p>
-      </form>
+    <section
+      className="container"
+      style={{ display: 'grid', placeItems: 'start', minHeight: 'calc(100vh - 220px)' }}
+    >
+      <div className="card" style={{ maxWidth: 520, width: '100%', margin: '40px auto' }}>
+        <h2 style={{ marginTop: 0 }}>Login</h2>
+
+        <form onSubmit={onSubmit} className="form" style={{ display: 'grid', gap: 12 }}>
+          <label>
+            Email
+            <input
+              className="input"
+              type="email"
+              placeholder="name@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              required
+            />
+          </label>
+
+          <label>
+            Password
+            <input
+              className="input"
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
+          </label>
+
+          <button className="btn btn-primary" type="submit" disabled={login.isPending}>
+            {login.isPending ? 'Signing in…' : 'Login'}
+          </button>
+        </form>
+
+        <div className="muted" style={{ marginTop: 12 }}>
+          No account? <Link to="/register">Create one</Link>
+        </div>
+        <div className="muted" style={{ marginTop: 6 }}>
+          Want to work with us? <Link to="/become-provider">Become a provider</Link>
+        </div>
+      </div>
     </section>
   );
 }

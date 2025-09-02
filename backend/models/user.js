@@ -1,4 +1,3 @@
-// backend/models/User.js
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
@@ -7,7 +6,14 @@ const userSchema = new mongoose.Schema(
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true, lowercase: true },
     password: { type: String, required: true, minlength: 6 },
-    role: { type: String, enum: ['user', 'provider', 'admin'], default: 'user' }
+    role: { type: String, enum: ['user', 'provider', 'admin'], default: 'user' },
+
+    // ⬇️ NEW: tracks provider onboarding lifecycle without breaking existing users
+    providerStatus: {
+      type: String,
+      enum: ['none', 'pending', 'approved', 'rejected'],
+      default: 'none'
+    },
   },
   { timestamps: true }
 );

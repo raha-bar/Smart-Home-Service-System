@@ -10,7 +10,9 @@ import messageRoutes from './routes/messageRoutes.js';
 import reviewRoutes from './routes/reviewRoutes.js';
 import invoiceRoutes from './routes/invoiceRoutes.js';
 import providerRoutes from './routes/providerRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js';
 
+import adminProviderRoutes from './routes/adminProviderRoutes.js';
 const app = express();
 
 // Normalize allowed origin (supports CLIENT_URL or CLIENT_ORIGIN)
@@ -29,7 +31,8 @@ app.use('/api/messages', messageRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/providers', providerRoutes);
-
+app.use('/api/payments', paymentRoutes);
+app.use('/api/admin/providers', adminProviderRoutes);
 // Healthcheck
 app.get('/health', (_req, res) => res.json({ ok: true }));
 

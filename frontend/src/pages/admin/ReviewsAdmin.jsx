@@ -1,63 +1,137 @@
+import { useMemo, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import api from '../../lib/api';
+import DataTable from '../../components/admin/DataTable.jsx';
+import DensityToggle from '../../components/admin/DensityToggle.jsx';
+import CsvButton from '../../components/admin/CsvButton.jsx';
+import Button from '../../components/ui/Button';
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import api from '../../lib/api'
-import Button from '../../components/ui/Button'
-import Stars from '../../components/ui/Stars'
-import { useToast } from '../../components/ui/Toast.jsx'
+const RATING_FILTERS = ['All', 5,4,3,2,1];
 
-export default function ReviewsAdmin(){
-  const qc = useQueryClient()
-  const { push } = useToast() || { push: ()=>{} }
+export default function ReviewsAdmin() {
+  const qc = useQueryClient();
+  const [q, setQ] = useState('');
+  const [rating, setRating] = useState('All');
+  const [density, setDensity] = useState('comfortable');
+  const [mode, setMode] = useState('moderation'); // 'moderation' | 'all'
 
-  const { data, isLoading, error } = useQuery({
-    queryKey:['admin-reviews'],
-    queryFn: async () => {
-      try { return (await api.get('/reviews?status=pending')).data }
-      catch { return (await api.get('/reviews')).data }
-    }
-  })
+  const { data, isLoading, isError, error, isFetching } = useQuery({
+    queryKey: ['admin-reviews', mode],
+    queryFn: () => mode === 'moderation' ? fetchPendingFlex() : fetchAllFlex(),
+    staleTime: 30_000,
+    retry: 0,
+    refetchOnWindowFocus: false,
+  });
+
+  const reviews = useMemo(() => normalizeReviews(data), [data]);
+
+  const filtered = useMemo(() => {
+    const qq = q.trim().toLowerCase();
+    return reviews.filter(r => {
+      const user = (r.user?.name || '').toLowerCase();
+      const service = (r.service?.name || '').toLowerCase();
+      const comment = (r.comment || '').toLowerCase();
+      const matchQ = !qq || user.includes(qq) || service.includes(qq) || comment.includes(qq);
+      const rr = Number(r.rating || r.stars || 0);
+      const matchR = rating === 'All' || rr === Number(rating);
+      return matchQ && matchR;
+    });
+  }, [reviews, q, rating]);
 
   const approve = useMutation({
-    mutationFn: (id) => api.patch(`/reviews/${id}`, { status:'approved' }).then(r=>r.data),
-    onSuccess: () => { qc.invalidateQueries({queryKey:['admin-reviews']}); push('Review approved','success') },
-    onError: () => push('Failed to approve','error')
-  })
+    mutationFn: (id) => moderateFlex(id, 'approved'),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-reviews'] })
+  });
   const reject = useMutation({
-    mutationFn: (id) => api.patch(`/reviews/${id}`, { status:'rejected' }).then(r=>r.data),
-    onSuccess: () => { qc.invalidateQueries({queryKey:['admin-reviews']}); push('Review rejected','success') },
-    onError: () => push('Failed to reject','error')
-  })
-  const remove = useMutation({
-    mutationFn: (id) => api.delete(`/reviews/${id}`).then(r=>r.data),
-    onSuccess: () => { qc.invalidateQueries({queryKey:['admin-reviews']}); push('Review deleted','success') },
-    onError: () => push('Failed to delete','error')
-  })
+    mutationFn: (id) => moderateFlex(id, 'rejected'),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-reviews'] })
+  });
 
-  if (isLoading) return <div className="container"><p>Loading…</p></div>
-  if (error) return <div className="container"><p>Failed: {error.message}</p></div>
-
-  const list = Array.isArray(data) ? data : (data?.items || [])
+  const columns = [
+    { key:'service', header:'Service', accessor: r => r.service?.name || '—' },
+    { key:'user', header:'User', accessor: r => r.user?.name || '—' },
+    { key:'rating', header:'Rating', accessor: r => Number(r.rating ?? r.stars ?? 0), render: r => (
+      <>{Number(r.rating ?? r.stars ?? 0).toFixed(1)}★</>
+    ), width: 110 },
+    { key:'comment', header:'Comment', accessor: r => r.comment || r.text || '—', render: r =>
+      <span className="muted">{(r.comment || r.text || '—').slice(0, 88)}</span>
+    },
+    ...(mode === 'moderation' ? [{
+      key:'actions', header:'Actions', accessor: () => '', render: r => (
+        <div className="row" style={{ gap:8 }}>
+          <Button variant="primary" onClick={() => approve.mutate(r._id)}>Approve</Button>
+          <Button variant="ghost" onClick={() => reject.mutate(r._id)}>Reject</Button>
+        </div>
+      ), width: 200
+    }] : [])
+  ];
 
   return (
     <section className="container">
-      <h2>Review moderation</h2>
-      {list.length===0 && <p className="muted">No reviews to moderate.</p>}
-      <div className="grid">
-        {list.map(r => (
-          <div key={r._id} className="card">
-            <div className="row" style={{justifyContent:'space-between'}}>
-              <div><strong>{r.service?.name || r.serviceName || 'Service'}</strong> — <Stars value={r.rating||0}/></div>
-              <div className="muted">{new Date(r.createdAt || Date.now()).toLocaleString()}</div>
-            </div>
-            <p style={{marginTop:6}}>{r.comment}</p>
-            <div className="row" style={{gap:8}}>
-              <Button className="btn-sm" onClick={()=>approve.mutate(r._id)}>Approve</Button>
-              <Button className="btn-sm" onClick={()=>reject.mutate(r._id)}>Reject</Button>
-              <Button className="btn-sm" onClick={()=>remove.mutate(r._id)}>Delete</Button>
-            </div>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+        <div>
+          <h2 style={{ margin: 0 }}>Reviews (Admin)</h2>
+          <div className="muted">{mode === 'moderation' ? `${filtered.length} pending` : `${filtered.length} reviews`}{isFetching ? ' • updating…' : ''}</div>
+        </div>
+        <div className="row" style={{ gap:8, alignItems:'center', flexWrap:'wrap' }}>
+          <div className="row" style={{ gap:6, border:'1px solid var(--card-border)', borderRadius:10, padding:4 }}>
+            <button className={`btn btn-sm ${mode==='moderation'?'btn-primary':'btn-ghost'}`} onClick={()=>setMode('moderation')}>Moderation</button>
+            <button className={`btn btn-sm ${mode==='all'?'btn-primary':'btn-ghost'}`} onClick={()=>setMode('all')}>All reviews</button>
           </div>
-        ))}
+          <input className="input" placeholder="Search comment, user, or service…" value={q} onChange={e=>setQ(e.target.value)} style={{ minWidth:320 }} />
+          <select className="input" value={rating} onChange={e=>setRating(e.target.value)}>
+            {RATING_FILTERS.map(r => <option key={r} value={r}>{r === 'All' ? 'All ratings' : `${r}★`}</option>)}
+          </select>
+          <CsvButton filename="reviews.csv" rows={filtered} columns={columns} />
+          <DensityToggle value={density} onChange={setDensity} />
+        </div>
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        {isLoading && <div className="card">Loading…</div>}
+        {isError && <div className="card" style={{ color: 'var(--danger)' }}>Failed: {error?.message || 'Request failed'}</div>}
+        {!isLoading && !isError && (
+          <DataTable
+            columns={columns}
+            rows={filtered}
+            density={density}
+            emptyMessage={mode==='moderation' ? 'No pending reviews.' : 'No reviews found.'}
+          />
+        )}
       </div>
     </section>
-  )
+  );
 }
+
+/* ----------- helpers ----------- */
+async function fetchPendingFlex() {
+  const tries = [
+    () => api.get('/reviews/moderation', { params: { status: 'pending' } }),
+    () => api.get('/admin/reviews', { params: { status: 'pending' } }),
+  ];
+  return firstOk(tries).then(r => r.data);
+}
+async function fetchAllFlex() {
+  const tries = [
+    () => api.get('/reviews', { params: { includeAll: '1' } }),
+    () => api.get('/admin/reviews', { params: { scope: 'all' } }),
+  ];
+  return firstOk(tries).then(r => r.data);
+}
+async function moderateFlex(id, status) {
+  const tries = [
+    () => api.put(`/reviews/${id}/moderate`, { status }),
+    () => api.put(`/admin/reviews/${id}`, { status }),
+  ];
+  return firstOk(tries).then(r => r.data);
+}
+function normalizeReviews(raw){
+  if (!raw) return [];
+  const arr = Array.isArray(raw) ? raw : (Array.isArray(raw.items) ? raw.items : (Array.isArray(raw.reviews) ? raw.reviews : []));
+  return arr.map(x => ({
+    ...x,
+    rating: x.rating ?? x.stars ?? 0,
+    comment: x.comment ?? x.text ?? '',
+  }));
+}
+async function firstOk(tries){let err;for(const t of tries){try{return await t()}catch(e){err=e}}throw err||new Error('No working endpoint')}

@@ -1,52 +1,66 @@
+import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '../../lib/api.js';
-import Button from '../../components/ui/Button.jsx';
-import { useToast } from '../../components/ui/Toast.jsx';
+import { useQuery } from '@tanstack/react-query';
+import api from '../../lib/api';
+import DataTable from '../../components/admin/DataTable.jsx';
 
 export default function ProviderDetail() {
   const { id } = useParams();
-  const qc = useQueryClient();
-  const { push } = useToast() || { push: () => {} };
 
-  const { data, isLoading, error } = useQuery({
+  const { data: pData, isLoading: pLoading, error: pError } = useQuery({
     queryKey: ['provider', id],
-    queryFn: async () => (await api.get(`/providers/${id}`)).data
+    queryFn: () => api.get(`/providers/${id}`).then(r => r.data),
+    keepPreviousData: true,
   });
 
-  const setStatus = useMutation({
-    mutationFn: async (status) => (await api.patch(`/providers/${id}`, { status })).data,
-    onSuccess: () => {
-      push({ title: 'Status updated' });
-      qc.invalidateQueries({ queryKey: ['provider', id] });
-      qc.invalidateQueries({ queryKey: ['providers'] });
-    }
+  const provider = useMemo(() => pData?.provider || pData?.data?.provider || pData || null, [pData]);
+
+  const { data: bData, isLoading: bLoading, error: bError } = useQuery({
+    queryKey: ['provider-bookings', id],
+    queryFn: () => api.get(`/bookings?provider=${id}`).then(r => r.data),
+    keepPreviousData: true,
   });
 
-  if (isLoading) return <div>Loading…</div>;
-  if (error) return <div className="error">{error.message}</div>;
-  const p = data;
+  const bookings = useMemo(() => {
+    if (!bData) return [];
+    if (Array.isArray(bData)) return bData;
+    if (Array.isArray(bData?.bookings)) return bData.bookings;
+    return [];
+  }, [bData]);
+
+  const columns = [
+    { key:'customer', header:'Customer', accessor: r => r.customer?.name || r.user?.name || '—' },
+    { key:'service', header:'Service', accessor: r => r.service?.name || '—' },
+    { key:'scheduledAt', header:'Scheduled', accessor: r => new Date(r.scheduledAt || r.date || 0), render: r =>
+      <span className="muted">{r.scheduledAt ? new Date(r.scheduledAt).toLocaleString() : '—'}</span>, width: 180
+    },
+    { key:'status', header:'Status', accessor: r => r.status || '—', render: r => <span className="pill">{labelize(r.status)}</span>, width: 130 },
+    { key:'payment', header:'Payment', accessor: r => r.paymentStatus || 'unpaid', render: r => <span className="pill">{labelize(r.paymentStatus || 'unpaid')}</span>, width: 120 },
+  ];
 
   return (
-    <div className="container">
-      <h2>Provider Detail</h2>
-      <div className="card">
-        <div><strong>Name:</strong> {p?.name || '-'}</div>
-        <div><strong>Phone:</strong> {p?.phone || '-'}</div>
-        <div><strong>Email:</strong> {p?.email || '-'}</div>
-        <div><strong>Status:</strong> {p?.status || '-'}</div>
-        <div><strong>Rating:</strong> {typeof p?.rating === 'number' ? p.rating.toFixed(1) : '-'}</div>
-        <div><strong>KYC:</strong> {p?.kycStatus || '-'}</div>
-      </div>
+    <section className="container">
+      <h2 style={{ marginBottom: 8 }}>Provider</h2>
+      {pLoading && <div className="card">Loading provider…</div>}
+      {pError && <div className="card">Failed: {pError.message}</div>}
+      {provider && (
+        <div className="card" style={{ display:'grid', gap:8, marginBottom: 16 }}>
+          <strong>{provider.name}</strong>
+          <div className="muted">{provider.email} • {provider.phone}</div>
+          <div className="muted">Status: <span className="pill">{labelize(provider.status || 'active')}</span></div>
+        </div>
+      )}
 
-      <div className="flex gap-2 mt-4">
-        <Button onClick={() => setStatus.mutate('approved')} disabled={setStatus.isPending}>Approve</Button>
-        <Button variant="secondary" onClick={() => setStatus.mutate('rejected')} disabled={setStatus.isPending}>Reject</Button>
-      </div>
-
-      <h3 className="mt-6">Recent Jobs</h3>
-      {/* Optional: if backend exposes /bookings?provider=id */}
-      {/* Render a table of recent bookings here when available */}
-    </div>
+      <h3 style={{ margin: '8px 0' }}>Assigned bookings</h3>
+      {bLoading && <div className="card">Loading bookings…</div>}
+      {bError && <div className="card">Failed: {bError.message}</div>}
+      {!bLoading && !bError && (
+        <DataTable
+          columns={columns}
+          rows={bookings}
+        />
+      )}
+    </section>
   );
 }
+function labelize(s){const t=String(s||'').replace(/[-_]/g,' ').trim();return t?t[0].toUpperCase()+t.slice(1):'—'}

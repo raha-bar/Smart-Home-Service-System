@@ -1,6 +1,6 @@
 // backend/routes/reviewRoutes.js
 import { Router } from 'express';
-import { protect } from '../middleware/authMiddleware.js';
+import { protect, maybeAuth } from '../middleware/authMiddleware.js';
 import { requireRole } from '../middleware/roleMiddleware.js';
 import {
   listReviews,
@@ -15,8 +15,8 @@ import {
 
 const router = Router();
 
-// Public
-router.get('/', listReviews);
+// Public list (approved). With maybeAuth, admins can pass ?includeAll=1
+router.get('/', maybeAuth, listReviews);
 router.get('/stats/:serviceId', getStats);
 
 // Authenticated (user)

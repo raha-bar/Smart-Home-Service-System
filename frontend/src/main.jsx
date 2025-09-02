@@ -8,6 +8,8 @@ import App from './App.jsx';
 import './styles.css';
 import './index.css';
 import './polish.css'; 
+import './styles/theme.css';
+
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

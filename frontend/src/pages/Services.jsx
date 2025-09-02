@@ -1,90 +1,189 @@
-import { useMemo, useState, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
-import api from '../lib/api'
-import ServiceCard from '../components/ServiceCard'
-import Button from '../components/ui/Button'
-import Input from '../components/ui/Input'
+import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
+import api from '../lib/api';
+import ServiceCard from '../components/ui/ServiceCard';
 
-const PAGE_SIZE = 6
+export default function Services() {
+  // UI state
+  const [search, setSearch] = useState('');
+  const [category, setCategory] = useState('All');
+  const [sort, setSort] = useState('popular'); // 'popular' | 'rating' | 'price_asc' | 'price_desc' | 'newest'
 
-export default function Services(){
-  const [params, setParams] = useSearchParams()
-  const [q, setQ] = useState(params.get('q') || '')
-  const [cat, setCat] = useState(params.get('category') || 'All')
-  const [sort, setSort] = useState(params.get('sort') || 'relevance')
-  const [page, setPage] = useState(parseInt(params.get('page')||'1',10))
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['services'],
+    queryFn: () => api.get('/services').then(r => r.data),
+    // keeps previous while reloading
+    keepPreviousData: true,
+  });
 
-  useEffect(()=>{
-    const next = {};
-    if(q) next.q=q
-    if(cat && cat!=='All') next.category=cat
-    if(sort!=='relevance') next.sort=sort
-    if(page>1) next.page=String(page)
-    setParams(next,{replace:true})
-  },[q,cat,sort,page,setParams])
+  // Normalize the server result into an array
+  const services = useMemo(() => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.services)) return data.services;
+    return [];
+  }, [data]);
 
-  const { data, isLoading, error } = useQuery({ queryKey:['services'], queryFn:()=>api.get('/services').then(r=>r.data) })
+  // Categories: derive from data; fallback to useful defaults
+  const derivedCategories = useMemo(() => {
+    const set = new Set();
+    for (const s of services) {
+      const c = (s.category || s.type || '').trim();
+      if (c) set.add(c);
+    }
+    // sensible defaults if API has no categories
+    const defaults = ['Cleaning', 'Plumbing', 'Electrical', 'Appliance', 'Painting', 'Pest'];
+    const arr = Array.from(set);
+    return arr.length ? ['All', ...arr] : ['All', ...defaults];
+  }, [services]);
 
-  const categories = useMemo(()=>{
-    const set = new Set((data||[]).map(s => s.category || 'Other')); return ['All', ...Array.from(set)]
-  },[data])
+  // Filter + sort
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
 
-  const list = useMemo(()=>{
-    const items = data || []
-    let filtered = items.filter(s=>{
-      const matchesQ = !q || (s.name?.toLowerCase().includes(q.toLowerCase()) || s.description?.toLowerCase().includes(q.toLowerCase()))
-      const matchesC = cat === 'All' || (s.category || 'Other') === cat
-      return matchesQ && matchesC
-    })
-    if (sort==='price-asc')   filtered = filtered.sort((a,b)=> (a.price||0) - (b.price||0))
-    if (sort==='price-desc')  filtered = filtered.sort((a,b)=> (b.price||0) - (a.price||0))
-    if (sort==='name-asc')    filtered = filtered.sort((a,b)=> (a.name||'').localeCompare(b.name||''))
-    if (sort==='name-desc')   filtered = filtered.sort((a,b)=> (b.name||'').localeCompare(a.name||''))
-    return filtered
-  },[data,q,cat,sort])
+    let list = services.filter(s => {
+      const name = (s.name || s.title || '').toLowerCase();
+      const cat = (s.category || s.type || '').toLowerCase();
+      const matchesText = !q || name.includes(q);
+      const matchesCat = category === 'All' || cat === category.toLowerCase();
+      return matchesText && matchesCat;
+    });
 
-  const totalPages = Math.max(1, Math.ceil((list.length||0) / PAGE_SIZE))
-  const pageItems = useMemo(()=>{
-    const start = (page-1)*PAGE_SIZE
-    return list.slice(start, start + PAGE_SIZE)
-  }, [list, page])
+    // read fields safely
+    const getPrice = (s) => {
+      const p = s.priceFrom ?? s.price ?? s.basePrice ?? 0;
+      return Number(p) || 0;
+    };
+    const getRating = (s) => Number(s.rating ?? s.avgRating ?? 0) || 0;
+    const getReviews = (s) => Number(s.reviews ?? s.reviewCount ?? 0) || 0;
+    const getCreated = (s) => new Date(s.createdAt || s.created_at || s.updatedAt || 0).getTime() || 0;
+
+    switch (sort) {
+      case 'rating':
+        list.sort((a, b) => getRating(b) - getRating(a));
+        break;
+      case 'price_asc':
+        list.sort((a, b) => getPrice(a) - getPrice(b));
+        break;
+      case 'price_desc':
+        list.sort((a, b) => getPrice(b) - getPrice(a));
+        break;
+      case 'newest':
+        list.sort((a, b) => getCreated(b) - getCreated(a));
+        break;
+      case 'popular':
+      default:
+        // popularity: reviews desc, then rating desc
+        list.sort((a, b) => {
+          const r = getReviews(b) - getReviews(a);
+          return r !== 0 ? r : getRating(b) - getRating(a);
+        });
+        break;
+    }
+    return list;
+  }, [services, search, category, sort]);
+
+  if (isLoading) {
+    return (
+      <section className="container">
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', gap:16}}>
+          <h2 style={{margin:0}}>Services</h2>
+          <div className="muted">Loading…</div>
+        </div>
+        <div className="grid" style={{marginTop:16}}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="card" style={{height: 290, opacity:.7}}>
+              <div style={{height:160, background:'#0f1a29', borderRadius:12, border:'1px solid var(--card-border)'}} />
+              <div style={{height:16, marginTop:12, width:'40%', background:'#0f1a29', borderRadius:6}} />
+              <div style={{height:12, marginTop:8, width:'65%', background:'#0f1a29', borderRadius:6}} />
+              <div style={{display:'flex', gap:10, marginTop:12}}>
+                <div className="btn" style={{opacity:.6}}>...</div>
+                <div className="btn btn-primary" style={{opacity:.6}}>...</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <section className="container">
+        <h2>Services</h2>
+        <p className="muted">Failed to load services: {error?.message}</p>
+      </section>
+    );
+  }
 
   return (
     <section className="container">
-      <div className="hero">
-        <h1>Book trusted home services</h1>
-        <p>Cleaning, electrical, plumbing, appliance repair and more — fast and reliable.</p>
-        <div className="search">
-          <Input placeholder="Search services (e.g., AC repair, cleaning…)" value={q} onChange={e=>{ setQ(e.target.value); setPage(1) }} />
-          <Button onClick={()=>{ setQ(''); setPage(1) }} className="btn-sm">Clear</Button>
-          <select className="input" value={sort} onChange={e=>{ setSort(e.target.value); setPage(1) }} style={{maxWidth:220}}>
-            <option value="relevance">Sort: Relevance</option>
-            <option value="price-asc">Price: Low to high</option>
-            <option value="price-desc">Price: High to low</option>
-            <option value="name-asc">Name: A → Z</option>
-            <option value="name-desc">Name: Z → A</option>
+      {/* Header + Controls */}
+      <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:16, marginBottom:14, flexWrap:'wrap'}}>
+        <div>
+          <h2 style={{margin:'0 0 6px'}}>Services</h2>
+          <div className="muted">{filtered.length} result{filtered.length === 1 ? '' : 's'}</div>
+        </div>
+
+        <div style={{display:'flex', alignItems:'center', gap:10, flexWrap:'wrap'}}>
+          <div style={{position:'relative'}}>
+            <input
+              className="input"
+              placeholder="Search services…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{minWidth:260}}
+            />
+          </div>
+
+          <select
+            className="input"
+            value={sort}
+            onChange={(e) => setSort(e.target.value)}
+          >
+            <option value="popular">Sort: Popular</option>
+            <option value="rating">Sort: Rating</option>
+            <option value="price_asc">Sort: Price (low → high)</option>
+            <option value="price_desc">Sort: Price (high → low)</option>
+            <option value="newest">Sort: Newest</option>
           </select>
-        </div>
-        <div className="pills">
-          {categories.map(c => <div key={c} className={['pill', c===cat?'active':''].join(' ')} onClick={()=>{ setCat(c); setPage(1) }}>{c}</div>)}
+
+          <Link to="/my-bookings" className="btn">My bookings</Link>
         </div>
       </div>
 
-      <div className="grid">
-        {isLoading && Array.from({length:6}).map((_,i)=>(<div key={i} className="card"><div className="skeleton" style={{height:18,marginBottom:8}}/><div className="skeleton" style={{height:12,width:'80%',marginBottom:16}}/><div className="skeleton" style={{height:12,width:'60%'}}/></div>))}
-        {error && <p className="mono">Failed to load: {error.message}</p>}
-        {!isLoading && !error && pageItems.length===0 && (<div className="card"><h3>No services found</h3><p className="muted">Try a different keyword or category.</p></div>)}
-        {pageItems.map(s => <ServiceCard key={s._id} service={s} />)}
+      {/* Categories */}
+      <div style={{display:'flex', gap:8, flexWrap:'wrap', marginBottom:16}}>
+        {derivedCategories.map((c) => {
+          const active = c === category;
+          return (
+            <button
+              key={c}
+              onClick={() => setCategory(c)}
+              className={`btn btn-sm ${active ? 'btn-primary' : 'btn-ghost'}`}
+              aria-pressed={active}
+              title={c}
+            >
+              {c}
+            </button>
+          );
+        })}
       </div>
 
-      {totalPages>1 && (
-        <div className="row" style={{justifyContent:'center', marginTop:20, gap:8}}>
-          <Button className="btn-sm" onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page<=1}>Prev</Button>
-          <div className="badge">Page {page} / {totalPages}</div>
-          <Button className="btn-sm" onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page>=totalPages}>Next</Button>
+      {/* Services Grid */}
+      {filtered.length === 0 ? (
+        <div className="card" style={{padding:'24px'}}>
+          <h3 style={{marginTop:0}}>No services found</h3>
+          <p className="muted">Try clearing search or selecting a different category.</p>
+        </div>
+      ) : (
+        <div className="grid">
+          {filtered.map(s => (
+            <ServiceCard key={s._id || s.id} service={s} />
+          ))}
         </div>
       )}
     </section>
-  )
+  );
 }

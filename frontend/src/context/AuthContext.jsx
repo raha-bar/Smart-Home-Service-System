@@ -1,48 +1,70 @@
 ﻿// frontend/src/context/AuthContext.jsx
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import api from '../lib/api';
 
 const AuthCtx = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
 
+  // Load from localStorage on mount
   useEffect(() => {
-    const raw = localStorage.getItem('user');
-    if (raw) setUser(JSON.parse(raw));
+    try {
+      const raw = localStorage.getItem('user');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setUser(parsed);
+        const token = localStorage.getItem('token') || localStorage.getItem('accessToken');
+        if (token && api?.defaults?.headers) {
+          api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        }
+      }
+    } catch {}
   }, []);
 
-  const value = useMemo(
-    () => ({
-      user,
+  const value = useMemo(() => ({
+    user,
+    isAuthenticated: !!user,
 
-      // Accepts { token, user } from login API
-      login: ({ token, user }) => {
-        if (token) localStorage.setItem('token', token);
-        if (user) {
-          // Normalize id shape so UI can use user._id everywhere
-          const normalized = { ...user, _id: user._id || user.id };
-          localStorage.setItem('user', JSON.stringify(normalized));
-          setUser(normalized);
+    // Optional helper to set token+user from any place (we'll call this in login)
+    loginWith: ({ token, user }) => {
+      try {
+        if (token) {
+          localStorage.setItem('token', token);
+          localStorage.setItem('accessToken', token);
+          if (api?.defaults?.headers) {
+            api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          }
         }
-      },
+        if (user) {
+          localStorage.setItem('user', JSON.stringify(user));
+          setUser(user);
+        }
+      } catch {}
+    },
 
-      // Merge updates into current user + persist
-      updateUser: (patch = {}) => {
-        setUser(prev => {
-          const next = { ...(prev || {}), ...patch };
-          localStorage.setItem('user', JSON.stringify(next));
-          return next;
-        });
-      },
+    // Update profile and persist
+    updateUser: (patch = {}) => {
+      setUser(prev => {
+        const next = { ...(prev || {}), ...patch };
+        try { localStorage.setItem('user', JSON.stringify(next)); } catch {}
+        return next;
+      });
+    },
 
-      logout: () => {
+    // Clear auth everywhere
+    logout: () => {
+      try {
         localStorage.removeItem('token');
+        localStorage.removeItem('accessToken');
         localStorage.removeItem('user');
-        setUser(null);
-      }
-    }),
-    [user]
-  );
+        if (api?.defaults?.headers) {
+          delete api.defaults.headers.common['Authorization'];
+        }
+      } catch {}
+      setUser(null);
+    },
+  }), [user]);
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 }
