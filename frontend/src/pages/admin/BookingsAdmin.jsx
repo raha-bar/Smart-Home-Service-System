@@ -213,6 +213,30 @@ function normalizeBookings(raw) {
   return [];
 }
 
+
+function summarizeByProvider(bookings) {
+  const groups = new Map();
+  for (const b of bookings || []) {                // Loop A (decision)
+    const pid = String(b?.provider || '');
+    if (!pid) continue;                            // Branch 1
+    const arr = groups.get(pid) || [];
+    arr.push(b);
+    groups.set(pid, arr);
+  }
+
+  const summary = [];
+  for (const [pid, arr] of groups) {               // Loop B (outer)
+    let done = 0, pend = 0, other = 0;
+    for (const b of arr) {                         // Nested loop (inner)
+      if (b.status === 'completed') done++;        // Branch 2
+      else if (b.status === 'pending') pend++;     // Branch 3
+      else other++;
+    }
+    summary.push({ provider: pid, done, pend, other });
+  }
+  return summary;
+}
+
 async function firstOk(tries) {
   let lastErr;
   for (const t of tries) {
